@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Target, Plus, RefreshCw, Trash2, TrendingUp, TrendingDown, Minus, ExternalLink, Clock, Loader2, X, Search, Globe, AlertCircle, Eye, EyeOff, Filter, ArrowUpDown } from "lucide-react";
-import { dummyRankings } from "../assets/assets";
+import { useApp } from "../context/AppContext";
 
 interface KeywordItem {
     _id: string;
@@ -20,6 +20,8 @@ interface KeywordItem {
 }
 
 export default function RankTracker() {
+    const { api } = useApp();
+
     const [keywords, setKeywords] = useState<KeywordItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -34,38 +36,73 @@ export default function RankTracker() {
     const [sortBy, setSortBy] = useState("newest");
 
     const fetchKeywords = async () => {
-        setTimeout(() => {
-            setKeywords(dummyRankings);
-            setLoading(false);
-        }, 1000);
+        try {
+            const res = await api.get('/api/rank/list');
+            if (res.data.success && Array.isArray(res.data.keywords)) {
+                setKeywords(res.data.keywords);
+            } else {
+                setKeywords([]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch keywords: ", error);
+            setKeywords([]);
+        }
+        setLoading(false);
     };
 
-    const handleAdd = async (e: React.SubmitEvent) => {
+    const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         setAdding(true);
-        setTimeout(() => {
-            setShowAddModal(false);
+        setAddError("");
+        try {
+            const res = await api.post('/api/rank/add', { keyword: newKeyword, url: newUrl });
+            if (res.data.success) {
+                setShowAddModal(false);
+                setNewKeyword("");
+                setNewUrl("");
+                fetchKeywords();
+            } else {
+                setAddError(res.data.message || "Failed to add keyword");
+            }
+        } catch (error: any) {
+            setAddError(error.response?.data?.message || "Failed to add keyword");
+        } finally {
             setAdding(false);
-        }, 1000);
+        }
     };
 
     const handleRefresh = async (id: string) => {
         setRefreshing(id);
-        setTimeout(() => {
+        try {
+            await api.get(`/api/rank/${id}/refresh`);
+            fetchKeywords();
+        } catch (error) {
+            console.error("Failed to refresh rank:", error);
+        } finally {
             setRefreshing(null);
-        }, 1000);
+        }
     };
 
     const handleDelete = async (id: string) => {
         if (!confirm("Delete this keyword tracking?")) return;
         setDeleting(id);
-        setTimeout(() => {
+        try {
+            await api.delete(`/api/rank/${id}`);
+            setKeywords((prev) => prev.filter((k) => k._id !== id));
+        } catch (error) {
+            console.error("Failed to delete keyword:", error);
+        } finally {
             setDeleting(null);
-        }, 1000);
+        }
     };
 
     const handleToggle = async (id: string) => {
-        console.log(id);
+        try {
+            await api.put(`/api/rank/${id}/toggle`);
+            setKeywords((prev) => prev.map((k) => (k._id === id ? { ...k, active: !k.active } : k)));
+        } catch (error) {
+            console.error("Failed to toggle keyword tracking:", error);
+        }
     };
 
     const getPositionBadge = (pos: number | null) => {
@@ -82,7 +119,7 @@ export default function RankTracker() {
         return { icon: <Minus size={14} />, text: "0", class: "text-muted-foreground" };
     };
 
-    let processedData = [...keywords];
+    let processedData = Array.isArray(keywords) ? [...keywords] : [];
 
     if (searchQuery) {
         processedData = processedData.filter((k) => k.keyword.toLowerCase().includes(searchQuery.toLowerCase()) || k.domain.toLowerCase().includes(searchQuery.toLowerCase()));
