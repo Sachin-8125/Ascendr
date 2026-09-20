@@ -3,15 +3,17 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { SearchIcon, GlobeIcon, FileSearchIcon, BrainIcon, CheckCircleIcon, AlertCircle, Loader2, ArrowRightIcon } from "lucide-react";
+import { useApp } from "../context/AppContext";
 
 const STEPS = [
-    { icon: <GlobeIcon size={22} />, label: "Connecting to browser", desc: "Creating cloud browser session..." },
+    { icon: <GlobeIcon size={22} />, label: "Connecting to server", desc: "Initiating website audit job..." },
     { icon: <FileSearchIcon size={22} />, label: "Scanning website", desc: "Extracting meta tags, links, images..." },
-    { icon: <BrainIcon size={22} />, label: "AI Analysis", desc: "Gemini is analyzing your SEO data..." },
+    { icon: <BrainIcon size={22} />, label: "AI Analysis", desc: "Analyzing SEO scores and generating insights..." },
     { icon: <CheckCircleIcon size={22} />, label: "Report Ready", desc: "Your SEO report is complete!" },
 ];
 
 export default function Analyze() {
+    const { api } = useApp();
     const [url, setUrl] = useState("");
     const [analyzing, setAnalyzing] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
@@ -21,6 +23,40 @@ export default function Analyze() {
 
     const navigate = useNavigate();
 
+    const startPolling = (analysisId: string) => {
+        if (pollRef.current) clearInterval(pollRef.current);
+
+        pollRef.current = setInterval(async () => {
+            try {
+                const res = await api.get(`/api/analysis/${analysisId}`);
+                if (res.data.success && res.data.analysis) {
+                    const status = res.data.analysis.status;
+
+                    if (status === "pending") {
+                        setCurrentStep(0);
+                    } else if (status === "scanning") {
+                        setCurrentStep(1);
+                    } else if (status === "analyzing") {
+                        setCurrentStep(2);
+                    } else if (status === "completed") {
+                        setCurrentStep(3);
+                        if (pollRef.current) clearInterval(pollRef.current);
+                        setTimeout(() => {
+                            setAnalyzing(false);
+                            navigate(`/report/${analysisId}`);
+                        }, 1000);
+                    } else if (status === "failed") {
+                        if (pollRef.current) clearInterval(pollRef.current);
+                        setError("Website analysis failed. Please verify the URL and try again.");
+                        setAnalyzing(false);
+                    }
+                }
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }, 1500);
+    };
+
     const handleAnalyze = async (submitUrl?: string) => {
         const targetUrl = submitUrl || url;
         if (!targetUrl.trim()) return;
@@ -29,13 +65,18 @@ export default function Analyze() {
         setAnalyzing(true);
         setCurrentStep(0);
 
-        setTimeout(() => setCurrentStep(1), 1000);
-        setTimeout(() => setCurrentStep(2), 3000);
-        setTimeout(() => setCurrentStep(3), 6000);
-        setTimeout(() => {
+        try {
+            const res = await api.post('/api/analysis/start', { url: targetUrl });
+            if (res.data.success && res.data.analysisId) {
+                startPolling(res.data.analysisId);
+            } else {
+                setError(res.data.message || "Failed to start analysis");
+                setAnalyzing(false);
+            }
+        } catch (err: any) {
+            setError(err.response?.data?.message || "Failed to start website analysis");
             setAnalyzing(false);
-            navigate(`/report/id123`);
-        }, 8000);
+        }
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -46,9 +87,8 @@ export default function Analyze() {
     useEffect(() => {
         const prefillUrl = searchParams.get("url");
         if (prefillUrl) {
-            (() => setUrl(prefillUrl))();
-            // Auto-start if URL is provided
-            setTimeout(() => handleAnalyze(prefillUrl), 500);
+            setUrl(prefillUrl);
+            setTimeout(() => handleAnalyze(prefillUrl), 300);
         }
 
         return () => {

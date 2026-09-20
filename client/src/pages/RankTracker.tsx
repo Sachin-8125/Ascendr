@@ -147,8 +147,18 @@ export default function RankTracker() {
     });
 
     useEffect(() => {
-        (async () => await fetchKeywords())();
+        fetchKeywords();
     }, []);
+
+    useEffect(() => {
+        const isAnyChecking = Array.isArray(keywords) && keywords.some((k) => k.status === "checking");
+        if (isAnyChecking) {
+            const interval = setInterval(() => {
+                fetchKeywords();
+            }, 3000);
+            return () => clearInterval(interval);
+        }
+    }, [keywords]);
 
     return (
         <div className="min-h-scree pt-16 md:pt-24 bg-background">

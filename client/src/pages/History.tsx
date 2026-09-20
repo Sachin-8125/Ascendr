@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Clock, Trash2, ExternalLink, Search, AlertCircle, Loader2, Filter, ArrowUpDown } from "lucide-react";
 import ScoreGauge from "../components/ScoreGauge";
-import { dummyAnalysisData } from "../assets/assets";
+import { useApp } from "../context/AppContext";
 
 interface AnalysisItem {
     _id: string;
@@ -19,6 +19,7 @@ interface AnalysisItem {
 }
 
 export default function History() {
+    const { api } = useApp();
     const [analyses, setAnalyses] = useState<AnalysisItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
@@ -30,19 +31,32 @@ export default function History() {
 
     const fetchAnalyses = async () => {
         setLoading(true);
-        setTimeout(() => {
-            setAnalyses(dummyAnalysisData);
-            setTotalPages(1);
+        try {
+            const res = await api.get('/api/analysis/recent');
+            if (res.data.success && Array.isArray(res.data.analyses)) {
+                setAnalyses(res.data.analyses);
+            } else {
+                setAnalyses([]);
+            }
+        } catch (err) {
+            console.error("Failed to fetch analysis history:", err);
+            setAnalyses([]);
+        } finally {
             setLoading(false);
-        }, 1000);
+        }
     };
 
     const handleDelete = async (id: string) => {
         if (!confirm("Delete this analysis?")) return;
         setDeleting(id);
-        setTimeout(() => {
+        try {
+            await api.delete(`/api/analysis/${id}`);
+            setAnalyses((prev) => prev.filter((a) => a._id !== id));
+        } catch (err) {
+            console.error("Failed to delete analysis:", err);
+        } finally {
             setDeleting(null);
-        }, 1000);
+        }
     };
 
     const getScoreClass = (s: number) => {
@@ -51,7 +65,7 @@ export default function History() {
         return "score-poor";
     };
 
-    let processedData = [...analyses];
+    let processedData = Array.isArray(analyses) ? [...analyses] : [];
 
     if (searchQuery) {
         processedData = processedData.filter((a) => a.url.toLowerCase().includes(searchQuery.toLowerCase()));
