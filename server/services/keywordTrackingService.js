@@ -1,4 +1,4 @@
-import { rankTracker } from "./rankTrackerService";
+import { rankTracker } from "./rankTrackerService.js";
 
 export async function keywordTracking(tracking) {
     try {

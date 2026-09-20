@@ -1,3 +1,5 @@
+import { keywordTracking } from "../services/keywordTrackingService.js";
+import KeywordTracking from "../models/KeywordTracking.js";
 
 //add a keyword to track
 export const addKeyword = async (params) => {
@@ -52,8 +54,16 @@ export const addKeyword = async (params) => {
             tracking
         });
 
+        keywordTracking(tracking);
+
     } catch (error) {
         console.log("error in addKeyword", error);
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: "Keyword already tracked"
+            })
+        }
         res.status(500).json({
             success: false,
             message: "Error starting keyword tracking"
@@ -63,25 +73,67 @@ export const addKeyword = async (params) => {
 
 //get all tracked keywords for user
 export const getKeywords = async (req, res) => {
+    try {
+        const tracking = await KeywordTracking.findOne({ _id: req.userId }).sort({ createdAt: -1 }).select("-rankHistory");
 
+        res.json({ success: true, tracking });
+    } catch (error) {
+        console.error("Get keywords error:", error.message);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
 };
 
 //get single keyword with full history
 export const getKeyword = async (req, res) => {
+    try {
+        const tracking = await KeywordTracking.findOne({ _id: req.params.id, userId: req.userId });
+        if (!tracking) return res.status(404).json({ success: false, message: "keyword tracking not found" });
 
+        res.json({ success: true, tracking });
+    } catch (error) {
+        console.error("Get keyword error:", error.message);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
 };
 
 //manually refresh a keyword ranking
 export const refreshKeyword = async (req, res) => {
-
+    try {
+        const tracking = await KeywordTracking.findOne({ _id: req.params.id, userId: req.userId });
+        if (!tracking) return res.status(404).json({ success: false, message: "keyword tracking not found" });
+        tracking.status = "checking";
+        await tracking.save();
+        res.json({ success: true, message: "Rank check started" });
+        keywordTracking(tracking);
+    } catch (error) {
+        console.error("Refresh keyword error:", error.message);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
 };
 
 //delete a keyword
 export const deleteKeyword = async (req, res) => {
-
+    try {
+        const tracking = await KeywordTracking.findByIdAndDelete({ _id: req.params.id, userId: req.userId });
+        if (!tracking) return res.status(404).json({ success: false, message: "keyword tracking not found" });
+        res.json({ success: true, message: "Keyword deleted" });
+    } catch (error) {
+        console.error("Delete keyword error:", error.message);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
 };
 
 //toggle tracking active/inactive
 export const toggleTracking = async (req, res) => {
+    try {
+        const tracking = await KeywordTracking.findOne({ _id: req.params.id, userId: req.userId });
+        if (!tracking) return res.status(404).json({ success: false, message: "keyword tracking not found" });
 
+        tracking.active = !tracking.active;
+        await tracking.save();
+        res.json({ success: true, message: "tracking toggled" });
+    } catch (error) {
+        console.error("Toggle tracking error:", error.message);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
 };
