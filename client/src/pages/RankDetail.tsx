@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Target, Globe, Clock, TrendingUp, TrendingDown, Minus, RefreshCw, AlertCircle, ExternalLink, Trophy, Users, Calendar, Loader2 } from "lucide-react";
-import { dummyWebsiteRanking } from "../assets/assets";
+import { useApp } from "../context/AppContext";
 
 interface RankHistoryEntry {
     date: string;
@@ -39,6 +39,7 @@ interface TrackingData {
 
 export default function RankDetail() {
     const { id } = useParams();
+    const { api } = useApp();
     const [tracking, setTracking] = useState<TrackingData | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -46,19 +47,30 @@ export default function RankDetail() {
     const chartRef = useRef<HTMLCanvasElement>(null);
 
     const fetchTracking = async () => {
-        setTimeout(() => {
-            setTracking(dummyWebsiteRanking);
+        if (!id) return;
+        try {
+            const res = await api.get(`/api/rank/${id}`);
+            if (res.data.success && res.data.tracking) {
+                setTracking(res.data.tracking);
+            }
+        } catch (error) {
+            console.error("Failed to fetch tracking details:", error);
+        } finally {
             setLoading(false);
-        }, 1000);
+        }
     };
 
     const handleRefresh = async () => {
-        if (!tracking) return;
+        if (!id) return;
         setRefreshing(true);
-        setTimeout(() => {
-            setTracking(dummyWebsiteRanking);
+        try {
+            await api.get(`/api/rank/${id}/refresh`);
+            await fetchTracking();
+        } catch (error) {
+            console.error("Failed to refresh ranking:", error);
+        } finally {
             setRefreshing(false);
-        }, 1000);
+        }
     };
 
     const drawChart = () => {

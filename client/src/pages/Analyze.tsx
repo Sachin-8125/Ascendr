@@ -38,7 +38,7 @@ export default function Analyze() {
         }, 8000);
     };
 
-    const handleSubmit = (e: React.SubmitEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         handleAnalyze();
     };

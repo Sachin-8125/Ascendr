@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { SearchIcon, ArrowRightIcon, BarChart3Icon, GlobeIcon, TrendingUpIcon } from "lucide-react";
 import AnalysesCard from "../components/AnalysesCard";
 import { dummyAnalysisData } from "../assets/assets";
+import { useApp } from "../context/AppContext";
 
 interface AnalysisSummary {
     _id: string;
@@ -19,7 +20,7 @@ interface AnalysisSummary {
 }
 
 export default function Dashboard() {
-    const user = { name: "John Doe", plan: "free", analysisCount: 2 };
+    const { user } = useApp();
     const navigate = useNavigate();
     const [url, setUrl] = useState("");
     const [analyses, setAnalyses] = useState<AnalysisSummary[]>([]);
@@ -32,7 +33,7 @@ export default function Dashboard() {
         }, 1000);
     };
 
-    const handleAnalyze = (e: React.SubmitEvent) => {
+    const handleAnalyze = (e: React.FormEvent) => {
         e.preventDefault();
         if (url.trim()) {
             navigate(`/analyze?url=${encodeURIComponent(url)}`);

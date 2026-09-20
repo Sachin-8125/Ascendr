@@ -131,12 +131,11 @@ export async function rankTracker(keyword, targetDomain) {
     } catch (error) {
         console.error("Error in rankTracker service:", error);
         if (browser) {
-            await browser.close().catch(() => {
-                return {
-                    success: false,
-                    error: error.message || "browser closed"
-                }
-            })
+            await browser.close().catch(() => {});
         }
+        return {
+            success: false,
+            error: error.message || "Error tracking rank"
+        };
     }
 }
